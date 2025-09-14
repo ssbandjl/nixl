@@ -16,6 +16,7 @@
  */
 #include "mooncake_backend.h"
 #include "serdes/serdes.h"
+#include "common/nixl_log.h"
 
 #include <arpa/inet.h>
 #include <bits/stdint-uintn.h>
@@ -41,6 +42,12 @@ findLocalIpAddresses() {
 
         if (ifa->ifa_addr->sa_family == AF_INET) {
             if (strcmp(ifa->ifa_name, "lo") == 0) {
+                continue;
+            }
+
+            // Check if interface is UP and RUNNING
+            if (!(ifa->ifa_flags & IFF_UP) || !(ifa->ifa_flags & IFF_RUNNING)) {
+                NIXL_INFO << "Skipping interface " << ifa->ifa_name << " (not UP or not RUNNING)";
                 continue;
             }
 
@@ -129,6 +136,7 @@ struct nixlMooncakeBackendMD : public nixlBackendMD {
     nixlMooncakeBackendMD(bool isPrivate) : nixlBackendMD(isPrivate) {}
 
     virtual ~nixlMooncakeBackendMD() {}
+
     void *addr;
     size_t length;
     int ref_cnt;
@@ -209,6 +217,7 @@ struct nixlMooncakeBackendReqH : public nixlBackendReqH {
     nixlMooncakeBackendReqH() : nixlBackendReqH() {}
 
     virtual ~nixlMooncakeBackendReqH() {}
+
     uint64_t batch_id;
     size_t request_count;
 };
@@ -318,7 +327,7 @@ nixlMooncakeEngine::getNotifs(notif_list_t &notif_list) {
     for (int i = 0; i < size; i++) {
         notif_list.push_back(std::make_pair(notify_msgs[i].name, notify_msgs[i].msg));
     }
-    free(notify_msgs);
+    freeNotifsMsgBuf(notify_msgs, size);
     return NIXL_SUCCESS;
 }
 
